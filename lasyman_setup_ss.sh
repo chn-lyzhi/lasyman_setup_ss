@@ -34,7 +34,7 @@ UBUNTU_TOOLS_LIBS="python-pip mysql-server libapache2-mod-php5 python-m2crypto p
 
 CENTOS_TOOLS_LIBS="php55w php55w-opcache mysql55w mysql55w-server php55w-mysql php55w-gd libjpeg* \
 				php55w-imap php55w-ldap php55w-odbc php55w-pear php55w-xml php55w-xmlrpc php55w-mbstring \
-				php55w-mcrypt php55w-bcmath php55w-mhash libmcrypt m2crypto python-setuptools httpd redis-server nginx"
+				php55w-mcrypt php55w-bcmath php55w-mhash libmcrypt m2crypto python-setuptools httpd redis nginx git"
 
 ## check whether system is Ubuntu or not
 function check_OS_distributor(){
@@ -165,12 +165,12 @@ function install_soft_for_each(){
 			echo "$file installed ."
 		done
 		easy_install pip
-		pip install cymysql shadowsocks
-		echo "=======ready to reset mysql root password========"
-		reset_mysql_root_pwd
-		if [ $RESET -eq 0 ];then
-			reset_mysql_root_pwd
-		fi
+		pip install cymysql
+#		echo "=======ready to reset mysql root password========"
+#		reset_mysql_root_pwd
+#		if [ $RESET -eq 0 ];then
+#			reset_mysql_root_pwd
+#		fi
 	else
 		echo "Other OS not support yet, please try Ubuntu or CentOs"
 		exit 1
@@ -197,6 +197,19 @@ function setup_firewall()
 	done
 	/etc/init.d/iptables save
 	/etc/init.d/iptables restart
+}
+
+function install_manyuser_ss() {
+    cd /root
+    git clone -b manyuser https://github.com/mengskysama/shadowsocks.git
+    cd ./shadowsocks/shadowsocks
+    mysql -u ssuser -psspasswd sspanel < ./shadowsocks.sql
+    sed -i "/^MYSQL_HOST/ s#'.*'#'localhost'#" ${SS_ROOT}/Config.py
+    sed -i "/^MYSQL_PORT/ s#'.*'#'${PORT}'#" ${SS_ROOT}/Config.py
+    sed -i "/^MYSQL_USER/ s#'.*'#'${USER}'#" ${SS_ROOT}/Config.py
+    sed -i "/^MYSQL_PASS/ s#'.*'#'${ROOT_PASSWD}'#" ${SS_ROOT}/Config.py
+    sed -i "/^MYSQL_DB/ s#'.*'#'${DB_NAME}'#" ${SS_ROOT}/Config.py
+
 }
 
 #setup manyuser ss
@@ -236,7 +249,7 @@ function installNginx() {
 function install_redis() {
     wget http://dl.fedoraproject.org/pub/epel/6/x86_64/epel-release-6-8.noarch.rpm
     rpm -ivh epel-release-6-8.noarch.rpm
-    yum -y install redis-server
+    yum -y install redis
 }
 
 function install_sspanel() {
@@ -355,7 +368,7 @@ function start_SS() {
     touch /etc/supervisor/conf.d/shadowsocks.conf
     cat << EOF > /etc/supervisor/conf.d/shadowsocks.conf
 [program:shadowsocks]
-command=python /opt/shadowsocks/shadowsocks/server.py -c /opt/shadowsocks/shadowsocks/config.json
+command=python /root/shadowsocks/shadowsocks/server.py -c /root/shadowsocks/shadowsocks/config.json
 autorestart=true
 user=root
 EOF
@@ -364,7 +377,7 @@ EOF
     sed -i '$a ulimit -n 51200' /etc/profile
     sed -i '$a ulimit -Sn 4096' /etc/profile
     sed -i '$a ulimit -Hn 8192' /etc/profile
-    sed -i '$a ulimit -n 51200' /etc/default/supervisor
+    sed -i '$a ulimit -n 51200' /etc/supervisor
     sed -i '$a ulimit -Sn 4096' /etc/default/supervisor
     sed -i '$a ulimit -Hn 8192' /etc/default/supervisor
 
