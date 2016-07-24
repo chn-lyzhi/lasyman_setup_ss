@@ -226,7 +226,7 @@ function setup_manyuser_ss()
 	mysql_op "${import_db_sql}"
 }
 
-funcation installNginx() {
+function installNginx() {
     echo "installing Nginx..."
     yum install nginx
     service nginx start
