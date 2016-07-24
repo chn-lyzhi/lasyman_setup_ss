@@ -209,7 +209,6 @@ function install_manyuser_ss() {
     sed -i "/^MYSQL_USER/ s#'.*'#'${USER}'#" ${SS_ROOT}/Config.py
     sed -i "/^MYSQL_PASS/ s#'.*'#'${ROOT_PASSWD}'#" ${SS_ROOT}/Config.py
     sed -i "/^MYSQL_DB/ s#'.*'#'${DB_NAME}'#" ${SS_ROOT}/Config.py
-
 }
 
 #setup manyuser ss
@@ -377,9 +376,9 @@ EOF
     sed -i '$a ulimit -n 51200' /etc/profile
     sed -i '$a ulimit -Sn 4096' /etc/profile
     sed -i '$a ulimit -Hn 8192' /etc/profile
-    sed -i '$a ulimit -n 51200' /etc/supervisor
-    sed -i '$a ulimit -Sn 4096' /etc/default/supervisor
-    sed -i '$a ulimit -Hn 8192' /etc/default/supervisor
+    sed -i '$a ulimit -n 51200' nano /etc/supervisord.conf
+    sed -i '$a ulimit -Sn 4096' nano /etc/supervisord.conf
+    sed -i '$a ulimit -Hn 8192' nano /etc/supervisord.conf
 
 }
 
@@ -400,13 +399,13 @@ function start_ss()
 	fi
 	cd /root/shadowsocks/shadowsocks
 	nohup python server.py > /dev/null 2>&1 &
-	echo "setup firewall..."
-	setup_firewall
+#	echo "setup firewall..."
+#	setup_firewall
 	#add start-up
 	echo "cd /root/shadowsocks/shadowsocks;python server.py > /dev/null 2>&1 &" >> /etc/rc.d/rc.local
 #取消httpd
 #echo "/etc/init.d/httpd start" >> /etc/rc.d/rc.local
-	echo "/etc/init.d/mysqld start" >> /etc/rc.d/rc.local
+#	echo "/etc/init.d/mysqld start" >> /etc/rc.d/rc.local
 	####
 	echo ""
 	echo "========================================================================e"
@@ -433,14 +432,16 @@ fi
     installNginx
     install_redis
     install_sspanel
-    start_SS
+#    start_SS
 #	setup_sspanel
-#start_ss
+
     service mysql restart
     service php5-fpm restart
     service nginx restart
     service redis restart
     supervisorctl restart shadowsocks
+
+    start_ss
 
 else
 	echo -e "please run it as root user again !!!\n"
