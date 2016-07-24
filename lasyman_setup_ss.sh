@@ -205,7 +205,7 @@ function setup_manyuser_ss()
 	SS_ROOT=/root/shadowsocks/shadowsocks
 	echo -e "download manyuser shadowsocks\n"
 	cd /root
-	git clone -b manyuser https://github.com/mengskysama/shadowsocks-rm.git
+	git clone -b manyuser https://github.com/mengskysama/shadowsocks.git
 	cd ${SS_ROOT}
 	#modify Config.py
 	echo -e "modify Config.py...\n"
@@ -226,7 +226,14 @@ function setup_manyuser_ss()
 	mysql_op "${import_db_sql}"
 }
 
-#setup ss-panel 
+funcation installNginx() {
+    echo "installing Nginx..."
+    yum install nginx
+    service nginx start
+    chkconfig nginx on
+}
+
+#setup ss-panel
 function setup_sspanel()
 {
 	PANEL_ROOT=/root/ss-panel
@@ -246,8 +253,21 @@ function setup_sspanel()
 	fi
 	sed -i "/DB_PWD/ s#'password'#'${ROOT_PASSWD}'#" ${PANEL_ROOT}/lib/config.php
 	sed -i "/DB_DBNAME/ s#'db'#'${DB_NAME}'#" ${PANEL_ROOT}/lib/config.php
-	cp -rd ${PANEL_ROOT}/* /var/www/html/
-	rm -rf /var/www/html/index.html
+
+    touch /etc/nginx/conf.d/sspanel.conf
+    cat << EOF > /etc/denyhosts.conf
+server {
+    listen 80;
+    server_name ss.glrou.xyz;
+    root /home/www/ss-panel/public;
+    location / {
+        try_files $uri $uri/ /index.php$is_args$args;
+    }
+}
+EOF
+
+#cp -rd ${PANEL_ROOT}/* /var/www/html/
+#	rm -rf /var/www/html/index.html
 }
 
 #start shadowsocks server
@@ -256,7 +276,9 @@ function start_ss()
 	if [[ $UBUNTU -eq 1 ]];then
 		service apache2 restart
 	elif [[ $CENTOS -eq 1 ]];then
-		/etc/init.d/httpd start
+        service nginx restart
+        sleep 5
+#		/etc/init.d/httpd start
 	fi
 	if [[ $? != 0 ]];then
 		echo "Web server restart failed, please check!"
@@ -269,7 +291,8 @@ function start_ss()
 	setup_firewall
 	#add start-up
 	echo "cd /root/shadowsocks/shadowsocks;python server.py > /dev/null 2>&1 &" >> /etc/rc.d/rc.local
-	echo "/etc/init.d/httpd start" >> /etc/rc.d/rc.local
+#取消httpd
+#echo "/etc/init.d/httpd start" >> /etc/rc.d/rc.local
 	echo "/etc/init.d/mysqld start" >> /etc/rc.d/rc.local
 	####
 	echo ""
@@ -293,6 +316,7 @@ exit 1
 fi
 	install_soft_for_each
 	setup_manyuser_ss
+    installNginx
 	setup_sspanel
 	start_ss
 else
