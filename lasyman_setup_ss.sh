@@ -34,7 +34,7 @@ UBUNTU_TOOLS_LIBS="python-pip mysql-server libapache2-mod-php5 python-m2crypto p
 
 CENTOS_TOOLS_LIBS="php55w php55w-opcache mysql55w mysql55w-server php55w-mysql php55w-gd libjpeg* \
 				php55w-imap php55w-ldap php55w-odbc php55w-pear php55w-xml php55w-xmlrpc php55w-mbstring \
-				php55w-mcrypt php55w-bcmath php55w-mhash libmcrypt m2crypto python-setuptools httpd"
+				php55w-mcrypt php55w-bcmath php55w-mhash libmcrypt m2crypto python-setuptools httpd redis-server nginx"
 
 ## check whether system is Ubuntu or not
 function check_OS_distributor(){
@@ -191,7 +191,7 @@ function mysql_op()
 ## configure firewall
 function setup_firewall()
 {
-	for port in 443 80 `seq 50000 60000`
+	for port in 443 80 `seq 10000 20000`
 	do
 		iptables -I INPUT -p tcp --dport $port -j ACCEPT
 	done
@@ -212,7 +212,7 @@ function setup_manyuser_ss()
 	sed -i "/^MYSQL_HOST/ s#'.*'#'localhost'#" ${SS_ROOT}/Config.py
 	sed -i "/^MYSQL_USER/ s#'.*'#'${USER}'#" ${SS_ROOT}/Config.py
 	sed -i "/^MYSQL_PASS/ s#'.*'#'${ROOT_PASSWD}'#" ${SS_ROOT}/Config.py
-	sed -i "/rc4-md5/ s#"rc4-md5"#aes-256-cfb#" ${SS_ROOT}/config.json
+#sed -i "/rc4-md5/ s#"rc4-md5"#aes-256-cfb#" ${SS_ROOT}/config.json
 	#create database shadowsocks
 	echo -e "create database shadowsocks...\n"
 	create_db_sql="create database IF NOT EXISTS ${DB_NAME}"
@@ -228,9 +228,100 @@ function setup_manyuser_ss()
 
 function installNginx() {
     echo "installing Nginx..."
-    yum install nginx
+    yum -y install nginx
     service nginx start
     chkconfig nginx on
+}
+
+function install_redis() {
+    wget http://dl.fedoraproject.org/pub/epel/6/x86_64/epel-release-6-8.noarch.rpm
+    rpm -ivh epel-release-6-8.noarch.rpm
+    yum -y install redis-server
+}
+
+function install_sspanel() {
+    cd ~
+    git clone https://github.com/maxidea-com/ss-panel.git
+    curl -sS https://getcomposer.org/installer | php -- --install-dir=/bin --filename=composer
+    cd /root/ss-panel/
+    composer install
+    chmod -R 777 storage
+    cp .env.example .env
+    cat > /root/ss-panel/.env << EOF
+//  ss-panel v3 配置
+//
+// !!! 修改此key为随机字符串确保网站安全 !!!
+key = 'hehehehehe+1s+2s+3s'
+debug =  'false'  //  正式环境请确保为false #如果启动站点出现“Slim Application Error”，则把debug设置为‘true’，即可在页面上查看错误日志。
+appName = 'ss控制平台v3.0'             //站点名称
+baseUrl = 'http://ss.glrou.xyz'            // 站点地址
+timeZone = 'PRC'        // RPC 中国时间  UTC 格林时间
+pwdMethod = 'sha256'       // 密码加密   可选 md5,sha256
+salt = ''               // 密码加密用，从旧版升级请留空
+theme    = 'default'   // 主题
+authDriver = 'redis'   // 登录验证存储方式,推荐使用Redis   可选: cookie,redis
+sessionDriver = 'redis'
+cacheDriver   = 'redis'
+
+// 邮件
+mailDriver = 'mailgun'   // mailgun or smtp #如需使用邮件提醒，例如邮件找回密码，请注册mailgun账号并设置 （https://mailgun.com/）
+
+// 用户签到设置
+checkinTime = '22'      // 签到间隔时间 单位小时
+checkinMin = '99'       // 签到最少流量 单位MB
+checkinMax = '199'       // 签到最多流量
+
+//
+defaultTraffic = '50'      // 用户初始流量 单位GB
+
+// 注册后获得的邀请码数量 #建议禁用，设置为0，以后邀请码从admin后台手工生成
+inviteNum = '0'
+
+# database 数据库配置
+db_driver = 'mysql'
+db_host = 'localhost'
+db_database = '${DB_NAME}'
+db_username = '${USER}'
+db_password = '${ROOT_PASSWD}'
+db_charset = 'utf8'
+db_collation = 'utf8_general_ci'
+db_prefix = ''
+
+# redis
+redis_scheme = 'tcp'
+redis_host = '127.0.0.1'
+redis_port = '6379'
+redis_database = '0'
+EOF
+    mysql -u ssuser -psspasswd sspanel < db-160212.sql
+
+    touch /etc/nginx/conf.d/sspanel.conf
+    cat << EOF > /etc/nginx/conf.d/sspanel.conf
+server {
+    listen 80;
+    server_name ss.glrou.xyz;
+    root /root/ss-panel/public;
+    index index.php index.html index.htm;
+
+    location / {
+        try_files $uri $uri/ /index.php$is_args$args;
+    }
+
+    # pass the PHP scripts to FastCGI server listening on 127.0.0.1:9000
+    #
+    location ~ \.php$ {
+    fastcgi_split_path_info ^(.+\.php)(/.+)$;
+    #       # NOTE: You should have "cgi.fix_pathinfo = 0;" in php.ini
+    #
+    #       # With php5-cgi alone:
+    #       fastcgi_pass 127.0.0.1:9000;
+    #       # With php5-fpm:
+    fastcgi_pass unix:/var/run/php5-fpm.sock;
+    fastcgi_index index.php;
+    include fastcgi_params;
+    }
+}
+EOF
 }
 
 #setup ss-panel
@@ -254,20 +345,29 @@ function setup_sspanel()
 	sed -i "/DB_PWD/ s#'password'#'${ROOT_PASSWD}'#" ${PANEL_ROOT}/lib/config.php
 	sed -i "/DB_DBNAME/ s#'db'#'${DB_NAME}'#" ${PANEL_ROOT}/lib/config.php
 
-    touch /etc/nginx/conf.d/sspanel.conf
-    cat << EOF > /etc/denyhosts.conf
-server {
-    listen 80;
-    server_name ss.glrou.xyz;
-    root /home/www/ss-panel/public;
-    location / {
-        try_files $uri $uri/ /index.php$is_args$args;
-    }
-}
-EOF
 
 #cp -rd ${PANEL_ROOT}/* /var/www/html/
 #	rm -rf /var/www/html/index.html
+}
+
+function start_SS() {
+    yum -y install supervisor
+    touch /etc/supervisor/conf.d/shadowsocks.conf
+    cat << EOF > /etc/supervisor/conf.d/shadowsocks.conf
+[program:shadowsocks]
+command=python /opt/shadowsocks/shadowsocks/server.py -c /opt/shadowsocks/shadowsocks/config.json
+autorestart=true
+user=root
+EOF
+    service supervisor start
+    supervisorctl reload
+    sed -i '$a ulimit -n 51200' /etc/profile
+    sed -i '$a ulimit -Sn 4096' /etc/profile
+    sed -i '$a ulimit -Hn 8192' /etc/profile
+    sed -i '$a ulimit -n 51200' /etc/default/supervisor
+    sed -i '$a ulimit -Sn 4096' /etc/default/supervisor
+    sed -i '$a ulimit -Hn 8192' /etc/default/supervisor
+
 }
 
 #start shadowsocks server
@@ -317,8 +417,17 @@ fi
 	install_soft_for_each
 	setup_manyuser_ss
     installNginx
-	setup_sspanel
-	start_ss
+    install_redis
+    install_sspanel
+    start_SS
+#	setup_sspanel
+#start_ss
+
+    service php5-fpm restart
+    service nginx restart
+    service redis restart
+    supervisorctl restart shadowsocks
+
 else
 	echo -e "please run it as root user again !!!\n"
 	exit 1
