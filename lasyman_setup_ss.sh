@@ -16,10 +16,10 @@
 #----------------------------------------
 #mysql data
 HOST="localhost"
-USER="root"
+USER="ssuser"
 PORT="3306"
-ROOT_PASSWD=""
-DB_NAME="shadowsocks"
+ROOT_PASSWD="sspasswd"
+DB_NAME="sspanel"
 SQL_FILES="invite_code.sql ss_user_admin.sql ss_node.sql ss_reset_pwd.sql user.sql"
 CREATED=0
 RESET=1
@@ -34,7 +34,7 @@ UBUNTU_TOOLS_LIBS="python-pip mysql-server libapache2-mod-php5 python-m2crypto p
 
 CENTOS_TOOLS_LIBS="php55w php55w-opcache mysql55w mysql55w-server php55w-mysql php55w-gd libjpeg* \
 				php55w-imap php55w-ldap php55w-odbc php55w-pear php55w-xml php55w-xmlrpc php55w-mbstring \
-				php55w-mcrypt php55w-bcmath php55w-mhash libmcrypt m2crypto python-setuptools httpd redis nginx git"
+				php55w-mcrypt php55w-bcmath php55w-mhash libmcrypt m2crypto python-setuptools httpd nginx git"
 
 ## check whether system is Ubuntu or not
 function check_OS_distributor(){
@@ -428,6 +428,7 @@ echo "Error: Password can't be NULL!!"
 exit 1
 fi
 	install_soft_for_each
+    install_redis
 	setup_manyuser_ss
     installNginx
     install_redis
@@ -435,7 +436,7 @@ fi
     start_SS
 #	setup_sspanel
 #start_ss
-
+    service mysql restart
     service php5-fpm restart
     service nginx restart
     service redis restart
